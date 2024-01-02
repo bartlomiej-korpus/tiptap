@@ -1,6 +1,7 @@
 import React, {
   createRef,
-  forwardRef, useCallback, useImperativeHandle, useRef, useState,
+  useCallback, useImperativeHandle,
+  useState,
 } from 'react'
 import ReactDOM from 'react-dom'
 
@@ -16,7 +17,7 @@ type PortalHandle = {
     forceUpdate: () => void
 } | null
 
-type HoldersStatesRef = React.MutableRefObject<PortalHolderState[]>
+type HoldersStates = PortalHolderState[]
 
 type PortalProps = {
     portalKey: string,
@@ -29,7 +30,7 @@ const Portal = React.memo(({ portalKey, reactElement, element }: PortalProps) =>
 })
 
 type PortalHolderProps = {
-    holdersStatesRef: HoldersStatesRef
+    holdersStates: HoldersStates
     index: number
 }
 
@@ -37,7 +38,7 @@ const PortalHolder = React.memo((props: PortalHolderProps) => {
   const [, updateState] = useState({})
   const forceUpdate = useCallback(() => updateState({}), [])
 
-  const holderState = props.holdersStatesRef.current.at(props.index)
+  const holderState = props.holdersStates.at(props.index)
 
   useImperativeHandle(holderState?.ref, () => {
     return {
@@ -45,13 +46,13 @@ const PortalHolder = React.memo((props: PortalHolderProps) => {
     }
   }, [forceUpdate])
 
-  const hasNext = props.holdersStatesRef.current.length > props.index + 1
+  const hasNext = props.holdersStates.length > props.index + 1
 
   const renderer = holderState?.renderer
 
   return (<div>
         {renderer && <Portal portalKey={renderer.id} reactElement={renderer.reactElement} element={renderer.element} />}
-        {hasNext && <PortalHolder holdersStatesRef={props.holdersStatesRef} index={props.index + 1} />}
+        {hasNext && <PortalHolder holdersStates={props.holdersStates} index={props.index + 1} />}
     </div>)
 })
 
@@ -66,55 +67,55 @@ const emptyHolder: () => PortalHolderState = () => ({
   ref: createRef<PortalHandle>(),
 })
 
-export const Portals = forwardRef<PortalsHandle, {}>((props, ref) => {
-  const holdersStatesRef = useRef<PortalHolderState[]>([emptyHolder()])
+export const createPortals = () => {
+  const holdersStates: HoldersStates = [emptyHolder()]
 
-  const setRenderer = useCallback((id: string, renderer: ReactRenderer) => {
+  return {
+    setRenderer: (id: string, renderer: ReactRenderer) => {
 
-    const alreadyExists = holdersStatesRef.current.find(holder => holder.portalKey === id)
+      const alreadyExists = holdersStates.find(holder => holder.portalKey === id)
 
-    if (alreadyExists) {
-      alreadyExists.renderer = renderer
-      alreadyExists.ref.current?.forceUpdate()
-      return
-    }
+      if (alreadyExists) {
+        alreadyExists.renderer = renderer
+        alreadyExists.ref.current?.forceUpdate()
+        return
+      }
 
-    const firstEmptyPlace = holdersStatesRef.current.find(holder => !holder.portalKey)
+      const firstEmptyPlace = holdersStates.find(holder => !holder.portalKey)
 
-    if (firstEmptyPlace) {
-      firstEmptyPlace.portalKey = id
-      firstEmptyPlace.renderer = renderer
-      firstEmptyPlace.ref.current?.forceUpdate()
-      return
-    }
+      if (firstEmptyPlace) {
+        firstEmptyPlace.portalKey = id
+        firstEmptyPlace.renderer = renderer
+        firstEmptyPlace.ref.current?.forceUpdate()
+        return
+      }
 
-    holdersStatesRef.current.push({
-      portalKey: id,
-      renderer,
-      ref: React.createRef<PortalHandle>(),
-    })
+      holdersStates.push({
+        portalKey: id,
+        renderer,
+        ref: React.createRef<PortalHandle>(),
+      })
 
-    holdersStatesRef.current[holdersStatesRef.current.length - 2].ref.current?.forceUpdate()
-  }, [holdersStatesRef])
+      holdersStates[holdersStates.length - 2]?.ref.current?.forceUpdate()
+    },
+    removeRenderer: (id: string) => {
+      const targetHolder = holdersStates.find(holder => holder.portalKey === id)
 
-  const removeRenderer = useCallback((id: string) => {
-    const targetHolder = holdersStatesRef.current.find(holder => holder.portalKey === id)
+      if (!targetHolder) {
+        return
+      }
 
-    if (!targetHolder) {
-      return
-    }
+      targetHolder.portalKey = null
+      targetHolder.renderer = null
+      targetHolder.ref.current?.forceUpdate()
+    },
+    holdersStates,
+  }
+}
 
-    targetHolder.portalKey = null
-    targetHolder.renderer = null
-    targetHolder.ref.current?.forceUpdate()
-  }, [holdersStatesRef])
+export type PortalsState = ReturnType<typeof createPortals>
 
-  useImperativeHandle(ref, () => {
-    return {
-      setRenderer,
-      removeRenderer,
-    }
-  })
+export const Portals = (props: {portals: PortalsState}) => {
 
-  return <PortalHolder holdersStatesRef={holdersStatesRef} index={0} />
-})
+  return <PortalHolder holdersStates={props.portals.holdersStates} index={0} />
+}

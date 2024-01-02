@@ -4,7 +4,7 @@ import React, {
 import { flushSync } from 'react-dom'
 
 import { Editor } from './Editor.js'
-import { Portals, PortalsHandle } from './Portals.js'
+import { createPortals, Portals, PortalsState } from './Portals.js'
 import { ReactRenderer } from './ReactRenderer.js'
 
 const mergeRefs = <T extends HTMLDivElement>(
@@ -27,25 +27,22 @@ export interface EditorContentProps extends HTMLProps<HTMLDivElement> {
 }
 
 export interface EditorContentState {
-  renderers: Record<string, ReactRenderer>;
+  portals: PortalsState
 }
 
 export class PureEditorContent extends React.Component<EditorContentProps, EditorContentState> {
   editorContentRef: React.RefObject<any>
-
-  portalsRef: React.RefObject<PortalsHandle>
 
   initialized: boolean
 
   constructor(props: EditorContentProps) {
     super(props)
     this.editorContentRef = React.createRef()
-    this.portalsRef = React.createRef()
 
     this.initialized = false
 
     this.state = {
-      renderers: {},
+      portals: createPortals(),
     }
   }
 
@@ -95,13 +92,13 @@ export class PureEditorContent extends React.Component<EditorContentProps, Edito
 
   setRenderer(id: string, renderer: ReactRenderer) {
     this.maybeFlushSync(() => {
-      this.portalsRef.current?.setRenderer(id, renderer)
+      this.state.portals.setRenderer(id, renderer)
     })
   }
 
   removeRenderer(id: string) {
     this.maybeFlushSync(() => {
-      this.portalsRef.current?.removeRenderer(id)
+      this.state.portals.removeRenderer(id)
     })
 
   }
@@ -143,7 +140,7 @@ export class PureEditorContent extends React.Component<EditorContentProps, Edito
       <>
         <div ref={mergeRefs(innerRef, this.editorContentRef)} {...rest} />
         {/* @ts-ignore */}
-        <Portals ref={this.portalsRef as any} />
+        <Portals portals={this.state.portals} />
       </>
     )
   }

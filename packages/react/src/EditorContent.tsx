@@ -1,9 +1,10 @@
 import React, {
   ForwardedRef, forwardRef, HTMLProps, LegacyRef, MutableRefObject,
 } from 'react'
-import ReactDOM, { flushSync } from 'react-dom'
+import { flushSync } from 'react-dom'
 
 import { Editor } from './Editor.js'
+import { createPortals, Portals, PortalsState } from './Portals.js'
 import { ReactRenderer } from './ReactRenderer.js'
 
 const mergeRefs = <T extends HTMLDivElement>(
@@ -20,23 +21,13 @@ const mergeRefs = <T extends HTMLDivElement>(
   }
 }
 
-const Portals: React.FC<{ renderers: Record<string, ReactRenderer> }> = ({ renderers }) => {
-  return (
-    <>
-      {Object.entries(renderers).map(([key, renderer]) => {
-        return ReactDOM.createPortal(renderer.reactElement, renderer.element, key)
-      })}
-    </>
-  )
-}
-
 export interface EditorContentProps extends HTMLProps<HTMLDivElement> {
   editor: Editor | null;
   innerRef?: ForwardedRef<HTMLDivElement | null>;
 }
 
 export interface EditorContentState {
-  renderers: Record<string, ReactRenderer>;
+  portals: PortalsState
 }
 
 export class PureEditorContent extends React.Component<EditorContentProps, EditorContentState> {
@@ -47,10 +38,11 @@ export class PureEditorContent extends React.Component<EditorContentProps, Edito
   constructor(props: EditorContentProps) {
     super(props)
     this.editorContentRef = React.createRef()
+
     this.initialized = false
 
     this.state = {
-      renderers: {},
+      portals: createPortals(),
     }
   }
 
@@ -100,25 +92,15 @@ export class PureEditorContent extends React.Component<EditorContentProps, Edito
 
   setRenderer(id: string, renderer: ReactRenderer) {
     this.maybeFlushSync(() => {
-      this.setState(({ renderers }) => ({
-        renderers: {
-          ...renderers,
-          [id]: renderer,
-        },
-      }))
+      this.state.portals.setRenderer(id, renderer)
     })
   }
 
   removeRenderer(id: string) {
     this.maybeFlushSync(() => {
-      this.setState(({ renderers }) => {
-        const nextRenderers = { ...renderers }
-
-        delete nextRenderers[id]
-
-        return { renderers: nextRenderers }
-      })
+      this.state.portals.removeRenderer(id)
     })
+
   }
 
   componentWillUnmount() {
@@ -158,7 +140,7 @@ export class PureEditorContent extends React.Component<EditorContentProps, Edito
       <>
         <div ref={mergeRefs(innerRef, this.editorContentRef)} {...rest} />
         {/* @ts-ignore */}
-        <Portals renderers={this.state.renderers} />
+        <Portals portals={this.state.portals} />
       </>
     )
   }
